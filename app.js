@@ -3,21 +3,18 @@ const app = express();
 const port = 3000;
 const bodyParser = require('body-parser');
 const mongoose = require('mongoose');
+const Campground = require('./models/campground');
+const Comment = require('./models/comment');
+const seedDB = require('./seeds.js');
 
 mongoose.connect('mongodb://localhost:27017/yelp_camp', { useNewUrlParser: true });
 app.use(bodyParser.urlencoded({ extended: true }));
 app.set('view engine', 'ejs');
+app.use(express.static(__dirname + '/public'));
 
-// Schema Setup
+// seedDB(); // clear batabase and load in seed data with campgrounds and comments associated
 
-const campgroundSchema = new mongoose.Schema({
-	name: String,
-	image: String,
-	description: String
-});
-
-const Campground = mongoose.model('Campground', campgroundSchema);
-
+// Old seed data
 // Campground.create(
 // 	{
 // 		name: 'Granite Hill',
@@ -61,7 +58,7 @@ app.get('/campgrounds', (req, res) => {
 		if (err) {
 			console.log(err);
 		} else {
-			res.render('index', { campgrounds: allCampgrounds });
+			res.render('campgrounds/index', { campgrounds: allCampgrounds });
 		}
 	});
 });
@@ -87,21 +84,59 @@ app.post('/campgrounds', (req, res) => {
 
 // NEW - show form to create new campground
 app.get('/campgrounds/new', (req, res) => {
-	res.render('new');
+	res.render('campgrounds/new');
 });
 
 // The id route needs to come after the "new" route. Otherwise, it will treat "new" as an id
 // SHOW - shows more info abotu one campground
 app.get('/campgrounds/:id', (req, res) => {
 	// find the campground with provided ID
-	Campground.findById(req.params.id, function(err, foundCampground) {
+	Campground.findById(req.params.id).populate('comments').exec(function(err, foundCampground) {
 		if (err) {
 			console.log(err);
 		} else {
 			//  render show template with that campground
-			res.render('show', { campground: foundCampground });
+			res.render('campgrounds/show', { campground: foundCampground });
 		}
 	});
+});
+
+// ========================================
+// COMMENTS ROUTES
+// ========================================
+
+app.get('/campgrounds/:id/comments/new', (req, res) => {
+	// find campground by id
+	Campground.findById(req.params.id, (err, campground) => {
+		if (err) {
+			console.log(err);
+		} else {
+			res.render('comments/new', { campground: campground });
+		}
+	});
+});
+
+app.post('/campgrounds/:id/comments', function(req, res) {
+	// lookup campground using ID
+	Campground.findById(req.params.id, function(err, campground) {
+		if (err) {
+			console.log(err);
+			res.redirect('/campgrounds');
+		} else {
+			Comment.create(req.body.comment, function(err, comment) {
+				if (err) {
+					console.log(err);
+				} else {
+					campground.comments.push(comment);
+					campground.save();
+					res.redirect('/campgrounds/' + campground._id);
+				}
+			});
+		}
+	});
+	//create new comment
+	//connect new comment to campground
+	//redirect to camground show page
 });
 
 app.listen(port, () => {
